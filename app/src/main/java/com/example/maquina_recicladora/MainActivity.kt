@@ -1,6 +1,9 @@
 package com.example.maquina_recicladora
 
 import android.os.Bundle
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -87,6 +90,10 @@ fun AppMaquina() {
                 pantalla = "conteo"
             }
 
+         /*   "validacion" -> ValidacionBotellaScreen {
+              pantalla = "conteo"
+            } */
+
             "conteo" -> ConteoScreen {
                 pantalla = "despedida"
             }
@@ -98,48 +105,146 @@ fun AppMaquina() {
     }
 }
 @Composable
-fun BienvenidaScreen(onContinuar: () -> Unit) {
+fun BienvenidaScreen(
+    onContinuar: () -> Unit
+) {
+
+    val db = FirebaseFirestore.getInstance()
+
 
     val sessionId = rememberSaveable {
+
         "machine_001_" + System.currentTimeMillis()
+
     }
 
-    val qrBitmap = remember {
+
+    var vinculada by remember {
+
+        mutableStateOf(false)
+
+    }
+
+
+    val qrBitmap = remember(sessionId) {
+
         generarQR(sessionId)
+
     }
 
-    var vinculada by remember { mutableStateOf(false) }
+
+
+    // Crear sesión en Firestore
+
+    LaunchedEffect(sessionId) {
+
+
+        val datos = hashMapOf(
+
+            "maquina_id" to "MQ-ECO-01",
+
+            "estado" to "esperando_usuario",
+
+            "usuario_id" to null,
+
+            "fecha" to FieldValue.serverTimestamp()
+
+        )
+
+
+        db.collection("sesiones_reciclaje")
+            .document(sessionId)
+            .set(datos)
+            .addOnSuccessListener {
+
+                println("SESION CREADA: $sessionId")
+
+            }
+            .addOnFailureListener {
+
+                println("ERROR CREANDO SESION: ${it.message}")
+
+            }
+
+    }
+
+
+
+
+
+    // Escuchar vinculación
 
     DisposableEffect(sessionId) {
 
-        val ref = FirebaseDatabase.getInstance()
-            .getReference("sessions")
-            .child(sessionId)
-            .child("linked")
 
-        val listener = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val linked = snapshot.getValue(Boolean::class.java)
+        println("ESCUCHANDO SESION: $sessionId")
 
-                if (linked == true && !vinculada) {
-                    vinculada = true
+
+
+        val listener = db.collection("sesiones_reciclaje")
+            .document(sessionId)
+            .addSnapshotListener { snapshot, error ->
+
+
+
+                if(error != null){
+
+                    println(
+                        "ERROR LISTENER: ${error.message}"
+                    )
+
+                    return@addSnapshotListener
+
                 }
+
+
+
+                if(snapshot != null && snapshot.exists()){
+
+
+                    val usuarioId =
+                        snapshot.getString("usuario_id")
+
+
+
+                    println(
+                        "USUARIO DETECTADO: $usuarioId"
+                    )
+
+
+
+                    if(usuarioId != null && !vinculada){
+
+
+                        vinculada = true
+
+
+                    }
+
+
+                }
+
+
             }
 
-            override fun onCancelled(error: DatabaseError) {}
-        }
 
-        ref.addValueEventListener(listener)
+
+
 
         onDispose {
-            ref.removeEventListener(listener)
+
+            listener.remove()
         }
+
     }
 
-    LaunchedEffect(vinculada) {
-        if (vinculada) {
+    LaunchedEffect(vinculada){
+
+        if(vinculada){
+
             delay(3000)
             onContinuar()
+
         }
     }
 
@@ -197,65 +302,105 @@ fun BienvenidaScreen(onContinuar: () -> Unit) {
                         fontWeight = FontWeight.Bold
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(
+                        modifier = Modifier.height(12.dp)
+                    )
 
                     Text(
                         text = "Escanea el QR para comenzar",
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+
+
+                    Spacer(
+                        modifier = Modifier.height(24.dp)
+                    )
+
+
 
                     Image(
                         bitmap = qrBitmap.asImageBitmap(),
                         contentDescription = null,
                         modifier = Modifier.size(220.dp)
                     )
+
                 }
+
             }
+
+
+
+
 
             Card(
-            modifier = Modifier.size(100.dp),
-            shape = CircleShape,
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF2FAE32)
-            ),
-            elevation = CardDefaults.cardElevation(
-                defaultElevation = 8.dp
-            )
-        ) {
-
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+                modifier = Modifier.size(100.dp),
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF2FAE32)
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = 8.dp
+                )
             ) {
 
-                Image(
-                    painter = painterResource(R.drawable.logo_ecocycle),
-                    contentDescription = null,
-                    modifier = Modifier.size(70.dp)
-                )
+
+
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+
+
+
+                    Image(
+                        painter = painterResource(R.drawable.logo_ecocycle),
+                        contentDescription = null,
+                        modifier = Modifier.size(70.dp)
+                    )
+
+
+                }
+
             }
+
         }
-    }
-        if (vinculada) {
+
+
+
+
+
+        if(vinculada) {
+
+
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.55f)),
+                    .background(
+                        Color.Black.copy(alpha = 0.55f)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
+
+
+
                 Card(
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White
+                    )
                 ) {
+
                     Column(
                         modifier = Modifier.padding(32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
 
                         val composition by rememberLottieComposition(
-                            LottieCompositionSpec.RawRes(R.raw.success)
+                            LottieCompositionSpec.RawRes(
+                                R.raw.success
+                            )
                         )
 
                         LottieAnimation(
@@ -264,7 +409,9 @@ fun BienvenidaScreen(onContinuar: () -> Unit) {
                             modifier = Modifier.size(180.dp)
                         )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(
+                            modifier = Modifier.height(12.dp)
+                        )
 
                         Text(
                             text = "Máquina vinculada",
@@ -795,5 +942,51 @@ fun DespedidaScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ValidacionBotellaScreen(
+    onBotellaAceptada: () -> Unit
+) {
+
+    var mensaje by remember {
+        mutableStateOf("Coloca una botella frente a la cámara")
+    }
+
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            Text(
+                text = mensaje,
+                fontSize = 24.sp
+            )
+
+
+            Spacer(
+                modifier = Modifier.height(20.dp)
+            )
+
+
+            CameraDetector(
+                onBottleDetected = {
+
+                    mensaje = "Botella detectada"
+
+                    // Después aquí llamaremos:
+                    // onBotellaAceptada()
+
+                }
+            )
+
+        }
+
     }
 }
