@@ -1193,6 +1193,14 @@ fun ValidacionBotellaScreen(
                     Button(
                         onClick = {
                             scope.launch {
+                                val db = FirebaseFirestore.getInstance()
+                                db.collection("sesiones_reciclaje")
+                                    .document(sessionId)
+                                    .update(
+                                        "estado", "completada",
+                                        "botellas", botellas,
+                                        "puntos", botellas * 20
+                                    )
                                 ApiClient.limpiarSesionMaquina(machineId)
                                 onFinalizar(botellas)
                             }
