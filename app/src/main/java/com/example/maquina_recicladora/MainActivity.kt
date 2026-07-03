@@ -1034,16 +1034,34 @@ fun ValidacionBotellaScreen(
                 null -> statusText = "Error de conexión con Visor"
                 true -> {
                     esBotella = true
-                    statusText = "YOLO: botella detectada!"
                     validando = true
-                    botellas++
-                    mensaje = "Botella #$botellas detectada"
+                    mensaje = "Botella detectada, abriendo compuerta..."
+                    statusText = "Notificando a Visor..."
                     ApiClient.validarBotella(
                         sessionId = sessionId,
                         machineId = machineId,
                         esBotella = true
                     )
-                    delay(2000)
+                    statusText = "Esperando confirmación ESP32..."
+                    val confirmacion = ApiClient.esperarConfirmacionEsp32(sessionId)
+                    when (confirmacion) {
+                        null -> {
+                            statusText = "Error: ESP32 no respondió"
+                            mensaje = "Error de confirmación"
+                            delay(3000)
+                        }
+                        true -> {
+                            botellas++
+                            statusText = "ESP32: botella confirmada!"
+                            mensaje = "Botella #$botellas almacenada"
+                            delay(2000)
+                        }
+                        false -> {
+                            statusText = "ESP32: botella rechazada"
+                            mensaje = "Objeto devuelto, intenta de nuevo"
+                            delay(2000)
+                        }
+                    }
                     mensaje = "Coloca la siguiente botella"
                     validando = false
                 }
