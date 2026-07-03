@@ -15,6 +15,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -33,7 +34,8 @@ import java.util.concurrent.Executors
 
 @Composable
 fun CameraDetector(
-    onBottleDetected: () -> Unit
+    onBottleDetected: () -> Unit,
+    detectionKey: Int = 0
 ) {
 
     val context = LocalContext.current
@@ -42,6 +44,16 @@ fun CameraDetector(
     var botellaDetectada by remember {
         mutableStateOf(false)
     }
+
+    var botellaEnCuadro by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(detectionKey) {
+        botellaDetectada = false
+    }
+
+    val borderColor = if (botellaEnCuadro) Color(0xFF44C225) else Color.Red
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -117,6 +129,8 @@ fun CameraDetector(
                                     zonaBotella
                                 )
 
+                            botellaEnCuadro = detectada
+
                             if(
                                 detectada &&
                                 !botellaDetectada
@@ -175,14 +189,14 @@ fun CameraDetector(
                 .height(300.dp)
                 .border(
                     width = 4.dp,
-                    color = Color.Green
+                    color = borderColor
                 )
         )
 
 
 
         Text(
-            text = "Coloca la botella aquí",
+            text = if (botellaEnCuadro) "Botella detectada" else "Coloca la botella aquí",
             color = Color.White,
             modifier = Modifier
                 .align(

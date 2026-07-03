@@ -1,0 +1,72 @@
+package com.example.maquina_recicladora
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+object ApiClient {
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
+
+    private val JSON_MEDIA = "application/json".toMediaType()
+
+    suspend fun validarBotella(
+        sessionId: String,
+        machineId: String,
+        esBotella: Boolean
+    ): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val json = JSONObject().apply {
+                    put("sessionId", sessionId)
+                    put("machineId", machineId)
+                    put("esBotella", esBotella)
+                }
+                val body = json.toString().toRequestBody(JSON_MEDIA)
+                val request = Request.Builder()
+                    .url("${EcoCycleConfig.VISOR_URL}/machine-validate")
+                    .post(body)
+                    .build()
+                val response = client.newCall(request).execute()
+                response.isSuccessful
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
+    suspend fun registrarSesion(
+        usuarioId: String,
+        maquinaId: String,
+        botellas: Int
+    ): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val json = JSONObject().apply {
+                    put("usuarioId", usuarioId)
+                    put("maquinaId", maquinaId)
+                    put("botellas", botellas)
+                }
+                val body = json.toString().toRequestBody(JSON_MEDIA)
+                val request = Request.Builder()
+                    .url("${EcoCycleConfig.NET_API_URL}/sesionreciclaje")
+                    .post(body)
+                    .build()
+                val response = client.newCall(request).execute()
+                response.isSuccessful
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+}

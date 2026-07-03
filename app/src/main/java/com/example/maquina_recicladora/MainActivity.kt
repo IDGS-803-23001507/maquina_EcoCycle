@@ -3,7 +3,6 @@ package com.example.maquina_recicladora
 import android.os.Bundle
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
-import androidx.compose.runtime.DisposableEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -26,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
-import androidx.compose.runtime.DisposableEffect
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -44,7 +42,6 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.airbnb.lottie.compose.*
 import com.google.firebase.database.FirebaseDatabase
@@ -53,6 +50,7 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,6 +69,9 @@ class MainActivity : ComponentActivity() {
 fun AppMaquina() {
 
     var pantalla by remember { mutableStateOf("bienvenida") }
+    var sessionId by remember { mutableStateOf("") }
+    var usuarioId by remember { mutableStateOf("") }
+    var botellasContadas by remember { mutableIntStateOf(0) }
 
     AnimatedContent(
         targetState = pantalla,
@@ -82,37 +83,53 @@ fun AppMaquina() {
 
         when (pantallaActual) {
 
-            "bienvenida" -> BienvenidaScreen {
+            "bienvenida" -> BienvenidaScreen { sid, uid ->
+                sessionId = sid
+                usuarioId = uid
+                botellasContadas = 0
                 pantalla = "inicio"
             }
 
             "inicio" -> InicioScreen {
-                pantalla = "conteo"
+                pantalla = "validacion"
             }
 
-         /*   "validacion" -> ValidacionBotellaScreen {
-              pantalla = "conteo"
-            } */
+            "validacion" -> ValidacionBotellaScreen(
+                sessionId = sessionId,
+                machineId = EcoCycleConfig.MACHINE_ID,
+                onFinalizar = { count ->
+                    botellasContadas = count
+                    pantalla = "conteo"
+                }
+            )
 
-            "conteo" -> ConteoScreen {
-                pantalla = "despedida"
-            }
+            "conteo" -> ConteoScreen(
+                botellas = botellasContadas,
+                usuarioId = usuarioId,
+                maquinaId = EcoCycleConfig.MACHINE_ID,
+                onFinalizar = {
+                    pantalla = "despedida"
+                }
+            )
 
-            "despedida" -> DespedidaScreen {
-                pantalla = "bienvenida"
-            }
+            "despedida" -> DespedidaScreen(
+                puntos = botellasContadas * 20,
+                onReiniciar = {
+                    pantalla = "bienvenida"
+                }
+            )
         }
     }
 }
 @Composable
 fun BienvenidaScreen(
-    onContinuar: () -> Unit
+    onContinuar: (sessionId: String, usuarioId: String) -> Unit
 ) {
 
     val db = FirebaseFirestore.getInstance()
 
 
-    val sessionId = rememberSaveable {
+    val sid = rememberSaveable {
 
         "machine_001_" + System.currentTimeMillis()
 
@@ -125,10 +142,16 @@ fun BienvenidaScreen(
 
     }
 
+    var uid by remember {
 
-    val qrBitmap = remember(sessionId) {
+        mutableStateOf("")
 
-        generarQR(sessionId)
+    }
+
+
+    val qrBitmap = remember(sid) {
+
+        generarQR(sid)
 
     }
 
@@ -136,7 +159,7 @@ fun BienvenidaScreen(
 
     // Crear sesión en Firestore
 
-    LaunchedEffect(sessionId) {
+    LaunchedEffect(sid) {
 
 
         val datos = hashMapOf(
@@ -153,11 +176,11 @@ fun BienvenidaScreen(
 
 
         db.collection("sesiones_reciclaje")
-            .document(sessionId)
+            .document(sid)
             .set(datos)
             .addOnSuccessListener {
 
-                println("SESION CREADA: $sessionId")
+                println("SESION CREADA: $sid")
 
             }
             .addOnFailureListener {
@@ -174,15 +197,15 @@ fun BienvenidaScreen(
 
     // Escuchar vinculación
 
-    DisposableEffect(sessionId) {
+    DisposableEffect(sid) {
 
 
-        println("ESCUCHANDO SESION: $sessionId")
+        println("ESCUCHANDO SESION: $sid")
 
 
 
         val listener = db.collection("sesiones_reciclaje")
-            .document(sessionId)
+            .document(sid)
             .addSnapshotListener { snapshot, error ->
 
 
@@ -202,20 +225,20 @@ fun BienvenidaScreen(
                 if(snapshot != null && snapshot.exists()){
 
 
-                    val usuarioId =
+                    val usuId =
                         snapshot.getString("usuario_id")
 
 
 
                     println(
-                        "USUARIO DETECTADO: $usuarioId"
+                        "USUARIO DETECTADO: $usuId"
                     )
 
 
 
-                    if(usuarioId != null && !vinculada){
+                    if(usuId != null && !vinculada){
 
-
+                        uid = usuId
                         vinculada = true
 
 
@@ -243,7 +266,7 @@ fun BienvenidaScreen(
         if(vinculada){
 
             delay(3000)
-            onContinuar()
+            onContinuar(sid, uid)
 
         }
     }
@@ -572,11 +595,16 @@ fun InicioScreen(onIniciar: () -> Unit) {
 }
 
 @Composable
-fun ConteoScreen(onFinalizar: () -> Unit) {
-
-    var botellas by remember { mutableStateOf(12) } // temporal
+fun ConteoScreen(
+    botellas: Int,
+    usuarioId: String,
+    maquinaId: String,
+    onFinalizar: () -> Unit
+) {
 
     val puntos = botellas * 20
+    var guardando by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -710,17 +738,30 @@ fun ConteoScreen(onFinalizar: () -> Unit) {
                     Spacer(modifier = Modifier.height(35.dp))
 
                     Button(
-                        onClick = onFinalizar,
+                        onClick = {
+                            if (!guardando) {
+                                guardando = true
+                                scope.launch {
+                                    ApiClient.registrarSesion(
+                                        usuarioId = usuarioId,
+                                        maquinaId = maquinaId,
+                                        botellas = botellas
+                                    )
+                                    onFinalizar()
+                                }
+                            }
+                        },
                         modifier = Modifier
                             .width(220.dp)
                             .height(55.dp),
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF44C225)
-                        )
+                        ),
+                        enabled = !guardando
                     ) {
                         Text(
-                            text = "FINALIZAR",
+                            text = if (guardando) "GUARDANDO..." else "FINALIZAR",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -758,7 +799,7 @@ fun ConteoScreen(onFinalizar: () -> Unit) {
 
 @Composable
 fun DespedidaScreen(
-    puntos: Int = 240,
+    puntos: Int,
     onReiniciar: () -> Unit
 ) {
 
@@ -947,46 +988,170 @@ fun DespedidaScreen(
 
 @Composable
 fun ValidacionBotellaScreen(
-    onBotellaAceptada: () -> Unit
+    sessionId: String,
+    machineId: String,
+    onFinalizar: (count: Int) -> Unit
 ) {
 
     var mensaje by remember {
         mutableStateOf("Coloca una botella frente a la cámara")
     }
 
+    var botellas by remember {
+        mutableIntStateOf(0)
+    }
+
+    var validando by remember {
+        mutableStateOf(false)
+    }
+
+    var detectionKey by remember {
+        mutableIntStateOf(0)
+    }
+
+    val scope = rememberCoroutineScope()
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF003B34),
+                        Color(0xFF00594D),
+                        Color(0xFF003B34)
+                    )
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(
+            contentAlignment = Alignment.TopCenter
         ) {
 
-            Text(
-                text = mensaje,
-                fontSize = 24.sp
-            )
+            Card(
+                modifier = Modifier
+                    .width(520.dp)
+                    .padding(top = 45.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = 10.dp
+                )
+            ) {
 
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            top = 30.dp,
+                            bottom = 30.dp,
+                            start = 20.dp,
+                            end = 20.dp
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
 
-            Spacer(
-                modifier = Modifier.height(20.dp)
-            )
+                    Text(
+                        text = "Valida tus botellas",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF17322E)
+                    )
 
+                    Spacer(modifier = Modifier.height(8.dp))
 
-            CameraDetector(
-                onBottleDetected = {
+                    Text(
+                        text = mensaje,
+                        fontSize = 16.sp,
+                        color = if (validando) Color(0xFF44C225) else Color.Gray
+                    )
 
-                    mensaje = "Botella detectada"
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    // Después aquí llamaremos:
-                    // onBotellaAceptada()
+                    Box(
+                        modifier = Modifier
+                            .width(300.dp)
+                            .height(320.dp)
+                    ) {
+                        CameraDetector(
+                            onBottleDetected = {
+                                if (!validando) {
+                                    validando = true
+                                    botellas++
+                                    mensaje = "Botella #$botellas detectada"
+                                    scope.launch {
+                                        ApiClient.validarBotella(
+                                            sessionId = sessionId,
+                                            machineId = machineId,
+                                            esBotella = true
+                                        )
+                                        delay(2000)
+                                        mensaje = "Coloca la siguiente botella"
+                                        detectionKey++
+                                        validando = false
+                                    }
+                                }
+                            },
+                            detectionKey = detectionKey
+                        )
+                    }
 
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Botellas: $botellas",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF17322E)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { onFinalizar(botellas) },
+                        modifier = Modifier
+                            .width(220.dp)
+                            .height(55.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF44C225)
+                        )
+                    ) {
+                        Text(
+                            text = "FINALIZAR",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
-            )
+            }
 
+            Card(
+                modifier = Modifier.size(90.dp),
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF11B311)
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = 8.dp
+                )
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.logo_ecocycle),
+                        contentDescription = "Logo",
+                        modifier = Modifier.size(60.dp)
+                    )
+                }
+            }
         }
-
     }
 }
