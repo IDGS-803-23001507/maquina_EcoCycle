@@ -26,7 +26,6 @@ fun CameraDetector(
     borderColor: Color = Color.Red,
     mensaje: String = "Coloca la botella aquí"
 ) {
-
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -34,34 +33,27 @@ fun CameraDetector(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-
         AndroidView(
             modifier = Modifier.fillMaxSize(),
-
             factory = { ctx ->
-
                 val previewView = PreviewView(ctx)
-
                 val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
                 cameraProviderFuture.addListener({
-
                     val cameraProvider = cameraProviderFuture.get()
-
                     val preview = Preview.Builder().build()
                     preview.setSurfaceProvider(previewView.surfaceProvider)
 
                     val analyzer = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setTargetResolution(android.util.Size(1280, 720))
                         .build()
 
                     analyzer.setAnalyzer(Executors.newSingleThreadExecutor()) { image ->
-
                         val jpeg = imageProxyToJpeg(image)
                         if (jpeg != null) {
                             onNewFrame(jpeg)
                         }
-
                         image.close()
                     }
 
@@ -70,13 +62,12 @@ fun CameraDetector(
                         cameraProvider.bindToLifecycle(
                             lifecycleOwner,
                             CameraSelector.DEFAULT_BACK_CAMERA,
-                            preview,
-                            analyzer
+                            analyzer,
+                            preview
                         )
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
-
                 }, ContextCompat.getMainExecutor(ctx))
 
                 previewView
@@ -104,30 +95,19 @@ fun CameraDetector(
 private fun imageProxyToJpeg(imageProxy: ImageProxy): ByteArray? {
     return try {
         val image = imageProxy.image ?: return null
-
         val yBuffer = image.planes[0].buffer
         val uBuffer = image.planes[1].buffer
         val vBuffer = image.planes[2].buffer
-
         val ySize = yBuffer.remaining()
         val uSize = uBuffer.remaining()
         val vSize = vBuffer.remaining()
-
         val nv21 = ByteArray(ySize + uSize + vSize)
         yBuffer.get(nv21, 0, ySize)
         vBuffer.get(nv21, ySize, vSize)
         uBuffer.get(nv21, ySize + vSize, uSize)
-
-        val yuvImage = android.graphics.YuvImage(
-            nv21, ImageFormat.NV21, image.width, image.height, null
-        )
-
+        val yuvImage = android.graphics.YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
         val output = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(
-            android.graphics.Rect(0, 0, image.width, image.height),
-            95, output
-        )
-
+        yuvImage.compressToJpeg(android.graphics.Rect(0, 0, image.width, image.height), 95, output)
         output.toByteArray()
     } catch (e: Exception) {
         e.printStackTrace()

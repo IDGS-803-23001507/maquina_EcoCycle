@@ -1019,59 +1019,85 @@ fun ValidacionBotellaScreen(
         mutableStateOf<ByteArray?>(null)
     }
 
+    var lastFrameSize by remember {
+        mutableIntStateOf(0)
+    }
+
+    var stableFrameCount by remember {
+        mutableIntStateOf(0)
+    }
+
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        statusText = "Iniciando detección..."
+        statusText = "Coloca una botella frente a la cámara"
         while (true) {
             delay(500)
             val jpeg = latestJpeg
             if (jpeg == null) {
-                statusText = "Esperando frames de cámara..."
+                statusText = "Esperando cámara..."
                 continue
             }
             if (validando) continue
 
-            statusText = "Analizando..."
+            val currentSize = jpeg.size
+            if (lastFrameSize > 0) {
+                val changeRatio = kotlin.math.abs(currentSize - lastFrameSize).toFloat() / lastFrameSize.toFloat()
+                if (changeRatio > 0.15f) {
+                    stableFrameCount = 0
+                    lastFrameSize = currentSize
+                    continue
+                }
+            }
+            lastFrameSize = currentSize
+            stableFrameCount++
+
+            if (stableFrameCount < 3) {
+                statusText = "Analizando..."
+                continue
+            }
+
+            statusText = "Enviando a Visor..."
             val detected = ApiClient.detectarEnVisor(jpeg)
             when (detected) {
-                null -> statusText = "Error de conexión con Visor"
+                null -> statusText = "Error de conexión"
                 true -> {
                     esBotella = true
                     validando = true
-                    mensaje = "Botella detectada, abriendo compuerta..."
-                    statusText = "Notificando a Visor..."
+                    mensaje = "Botella detectada"
+                    statusText = "Abriendo compuerta..."
                     ApiClient.validarBotella(
                         sessionId = sessionId,
                         machineId = machineId,
                         esBotella = true
                     )
-                    statusText = "Esperando confirmación ESP32..."
+                    statusText = "Esperando ESP32..."
                     val confirmacion = ApiClient.esperarConfirmacionEsp32(sessionId)
                     when (confirmacion) {
                         null -> {
-                            statusText = "Error: ESP32 no respondió"
-                            mensaje = "Error de confirmación"
+                            statusText = "ESP32 no respondió"
+                            mensaje = "Error"
                             delay(3000)
                         }
                         true -> {
                             botellas++
-                            statusText = "ESP32: botella confirmada!"
-                            mensaje = "Botella #$botellas almacenada"
+                            statusText = "Botella almacenada!"
+                            mensaje = "Botella #$botellas"
                             delay(2000)
                         }
                         false -> {
-                            statusText = "ESP32: botella rechazada"
-                            mensaje = "Objeto devuelto, intenta de nuevo"
+                            statusText = "Botella rechazada"
+                            mensaje = "Intenta de nuevo"
                             delay(2000)
                         }
                     }
-                    mensaje = "Coloca la siguiente botella"
+                    mensaje = "Coloca la siguiente"
                     validando = false
+                    stableFrameCount = 0
                 }
                 false -> {
                     esBotella = false
-                    statusText = "YOLO: no detectó botella"
+                    statusText = "No se detectó botella"
                 }
             }
         }
