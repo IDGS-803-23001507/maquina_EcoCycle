@@ -51,6 +51,7 @@ import com.google.firebase.database.DatabaseError
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -747,6 +748,7 @@ fun ConteoScreen(
                                         maquinaId = maquinaId,
                                         botellas = botellas
                                     )
+                                    ApiClient.limpiarSesionMaquina(maquinaId)
                                     onFinalizar()
                                 }
                             }
@@ -1017,6 +1019,8 @@ fun ValidacionBotellaScreen(
         mutableStateOf<ByteArray?>(null)
     }
 
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(Unit) {
         statusText = "Iniciando detección..."
         while (true) {
@@ -1165,7 +1169,12 @@ fun ValidacionBotellaScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
-                        onClick = { onFinalizar(botellas) },
+                        onClick = {
+                            scope.launch {
+                                ApiClient.limpiarSesionMaquina(machineId)
+                                onFinalizar(botellas)
+                            }
+                        },
                         modifier = Modifier
                             .width(220.dp)
                             .height(55.dp),

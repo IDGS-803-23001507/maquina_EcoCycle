@@ -94,6 +94,21 @@ object ApiClient {
         }
     }
 
+    suspend fun limpiarSesionMaquina(machineId: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("${EcoCycleConfig.VISOR_URL}/machine-cleanup/$machineId")
+                    .post("{}".toRequestBody(JSON_MEDIA))
+                    .build()
+                client.newCall(request).execute().isSuccessful
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
     suspend fun registrarSesion(
         usuarioId: String,
         maquinaId: String,
