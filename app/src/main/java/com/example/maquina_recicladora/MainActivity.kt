@@ -1005,11 +1005,55 @@ fun ValidacionBotellaScreen(
         mutableStateOf(false)
     }
 
-    var detectionKey by remember {
-        mutableIntStateOf(0)
+    var esBotella by remember {
+        mutableStateOf(false)
     }
 
-    val scope = rememberCoroutineScope()
+    var statusText by remember {
+        mutableStateOf("Esperando cámara...")
+    }
+
+    var latestJpeg by remember {
+        mutableStateOf<ByteArray?>(null)
+    }
+
+    LaunchedEffect(Unit) {
+        statusText = "Iniciando detección..."
+        while (true) {
+            delay(2000)
+            val jpeg = latestJpeg
+            if (jpeg == null) {
+                statusText = "Esperando frames de cámara..."
+                continue
+            }
+            if (validando) continue
+
+            statusText = "Enviando a Visor/YOLO..."
+            val detected = ApiClient.detectarEnVisor(jpeg)
+            when (detected) {
+                null -> statusText = "Error de conexión con Visor"
+                true -> {
+                    esBotella = true
+                    statusText = "YOLO: botella detectada!"
+                    validando = true
+                    botellas++
+                    mensaje = "Botella #$botellas detectada"
+                    ApiClient.validarBotella(
+                        sessionId = sessionId,
+                        machineId = machineId,
+                        esBotella = true
+                    )
+                    delay(2000)
+                    mensaje = "Coloca la siguiente botella"
+                    validando = false
+                }
+                false -> {
+                    esBotella = false
+                    statusText = "YOLO: no detectó botella"
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -1070,6 +1114,13 @@ fun ValidacionBotellaScreen(
                         color = if (validando) Color(0xFF44C225) else Color.Gray
                     )
 
+                    Text(
+                        text = statusText,
+                        fontSize = 11.sp,
+                        color = Color(0xFF888888),
+                        maxLines = 1
+                    )
+
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Box(
@@ -1078,25 +1129,9 @@ fun ValidacionBotellaScreen(
                             .height(320.dp)
                     ) {
                         CameraDetector(
-                            onBottleDetected = {
-                                if (!validando) {
-                                    validando = true
-                                    botellas++
-                                    mensaje = "Botella #$botellas detectada"
-                                    scope.launch {
-                                        ApiClient.validarBotella(
-                                            sessionId = sessionId,
-                                            machineId = machineId,
-                                            esBotella = true
-                                        )
-                                        delay(2000)
-                                        mensaje = "Coloca la siguiente botella"
-                                        detectionKey++
-                                        validando = false
-                                    }
-                                }
-                            },
-                            detectionKey = detectionKey
+                            onNewFrame = { bytes -> latestJpeg = bytes },
+                            borderColor = if (esBotella) Color.Green else Color.Red,
+                            mensaje = mensaje
                         )
                     }
 

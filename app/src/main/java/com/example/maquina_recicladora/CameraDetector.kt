@@ -1,26 +1,14 @@
 package com.example.maquina_recicladora
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
-import androidx.camera.core.CameraSelector
 import androidx.annotation.OptIn
-import androidx.camera.core.ExperimentalGetImage
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
+import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,321 +22,115 @@ import java.util.concurrent.Executors
 
 @Composable
 fun CameraDetector(
-    onBottleDetected: () -> Unit,
-    detectionKey: Int = 0
+    onNewFrame: (ByteArray) -> Unit,
+    borderColor: Color = Color.Red,
+    mensaje: String = "Coloca la botella aquí"
 ) {
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-
-    var botellaDetectada by remember {
-        mutableStateOf(false)
-    }
-
-    var botellaEnCuadro by remember {
-        mutableStateOf(false)
-    }
-
-    LaunchedEffect(detectionKey) {
-        botellaDetectada = false
-    }
-
-    val borderColor = if (botellaEnCuadro) Color(0xFF44C225) else Color.Red
 
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
 
-
         AndroidView(
             modifier = Modifier.fillMaxSize(),
 
             factory = { ctx ->
 
-                val previewView =
-                    PreviewView(ctx)
+                val previewView = PreviewView(ctx)
 
-                val cameraProviderFuture =
-                    ProcessCameraProvider.getInstance(ctx)
-
-
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
                 cameraProviderFuture.addListener({
 
+                    val cameraProvider = cameraProviderFuture.get()
 
-                    val cameraProvider =
-                        cameraProviderFuture.get()
+                    val preview = Preview.Builder().build()
+                    preview.setSurfaceProvider(previewView.surfaceProvider)
 
-                    val preview =
-                        Preview.Builder()
-                            .build()
+                    val analyzer = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
 
-                    preview.setSurfaceProvider(
-                        previewView.surfaceProvider
-                    )
+                    analyzer.setAnalyzer(Executors.newSingleThreadExecutor()) { image ->
 
-                    val detector =
-                        BottleDetector(context)
-
-
-
-                    val analyzer =
-                        ImageAnalysis.Builder()
-                            .setBackpressureStrategy(
-                                ImageAnalysis
-                                    .STRATEGY_KEEP_ONLY_LATEST
-                            )
-                            .build()
-
-
-
-                    analyzer.setAnalyzer(
-                        Executors.newSingleThreadExecutor()
-                    ) { image ->
-
-
-
-                        val bitmap =
-                            imageProxyToBitmap(image)
-
-
-
-                        if(bitmap != null){
-
-
-                            val zonaBotella =
-                                recortarZonaBotella(
-                                    bitmap
-                                )
-
-
-
-                            val detectada =
-                                detector.detect(
-                                    zonaBotella
-                                )
-
-                            botellaEnCuadro = detectada
-
-                            if(
-                                detectada &&
-                                !botellaDetectada
-                            ){
-
-                                botellaDetectada = true
-
-                                onBottleDetected()
-
-                            }
-
+                        val jpeg = imageProxyToJpeg(image)
+                        if (jpeg != null) {
+                            onNewFrame(jpeg)
                         }
 
-
-
                         image.close()
-
                     }
 
-
                     try {
-
                         cameraProvider.unbindAll()
-
-
                         cameraProvider.bindToLifecycle(
                             lifecycleOwner,
                             CameraSelector.DEFAULT_BACK_CAMERA,
                             preview,
                             analyzer
                         )
-
-
-                    } catch(e: Exception){
-
+                    } catch (e: Exception) {
                         e.printStackTrace()
-
                     }
 
-                },
-                    ContextCompat.getMainExecutor(ctx))
+                }, ContextCompat.getMainExecutor(ctx))
 
                 previewView
-
             }
-
         )
-
-
-
-        // Zona donde debe colocarse la botella
 
         Box(
             modifier = Modifier
                 .width(220.dp)
                 .height(300.dp)
-                .border(
-                    width = 4.dp,
-                    color = borderColor
-                )
+                .border(width = 4.dp, color = borderColor)
         )
-
-
 
         Text(
-            text = if (botellaEnCuadro) "Botella detectada" else "Coloca la botella aquí",
+            text = mensaje,
             color = Color.White,
             modifier = Modifier
-                .align(
-                    Alignment.BottomCenter
-                )
-                .padding(
-                    bottom = 40.dp
-                )
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 40.dp)
         )
-
     }
-
 }
 
-private fun recortarZonaBotella(
-    bitmap: Bitmap
-): Bitmap {
+@OptIn(ExperimentalGetImage::class)
+private fun imageProxyToJpeg(imageProxy: ImageProxy): ByteArray? {
+    return try {
+        val image = imageProxy.image ?: return null
 
-    val width =
-        bitmap.width
+        val yBuffer = image.planes[0].buffer
+        val uBuffer = image.planes[1].buffer
+        val vBuffer = image.planes[2].buffer
 
-    val height =
-        bitmap.height
+        val ySize = yBuffer.remaining()
+        val uSize = uBuffer.remaining()
+        val vSize = vBuffer.remaining()
 
+        val nv21 = ByteArray(ySize + uSize + vSize)
+        yBuffer.get(nv21, 0, ySize)
+        vBuffer.get(nv21, ySize, vSize)
+        uBuffer.get(nv21, ySize + vSize, uSize)
 
-
-    val cropWidth =
-        (width * 0.55).toInt()
-
-
-
-    val cropHeight =
-        (height * 0.75).toInt()
-
-
-
-    val left =
-        (width - cropWidth) / 2
-
-
-
-    val top =
-        (height - cropHeight) / 2
-
-
-
-
-    return Bitmap.createBitmap(
-        bitmap,
-        left,
-        top,
-        cropWidth,
-        cropHeight
-    )
-
-}
-
-
-@OptIn(androidx.camera.core.ExperimentalGetImage::class)
-private fun imageProxyToBitmap(
-    imageProxy: ImageProxy
-): Bitmap? {
-
-    val image =
-        imageProxy.image
-            ?: return null
-
-    val yBuffer =
-        image.planes[0].buffer
-
-
-    val uBuffer =
-        image.planes[1].buffer
-
-
-    val vBuffer =
-        image.planes[2].buffer
-
-
-
-    val ySize =
-        yBuffer.remaining()
-
-
-    val uSize =
-        uBuffer.remaining()
-
-
-    val vSize =
-        vBuffer.remaining()
-
-
-
-    val nv21 =
-        ByteArray(
-            ySize +
-                    uSize +
-                    vSize
+        val yuvImage = android.graphics.YuvImage(
+            nv21, ImageFormat.NV21, image.width, image.height, null
         )
 
-
-
-    yBuffer.get(
-        nv21,
-        0,
-        ySize
-    )
-
-
-    vBuffer.get(
-        nv21,
-        ySize,
-        vSize
-    )
-
-
-    uBuffer.get(
-        nv21,
-        ySize + vSize,
-        uSize
-    )
-
-
-
-    val yuvImage =
-        android.graphics.YuvImage(
-            nv21,
-            ImageFormat.NV21,
-            image.width,
-            image.height,
-            null
+        val output = ByteArrayOutputStream()
+        yuvImage.compressToJpeg(
+            android.graphics.Rect(0, 0, image.width, image.height),
+            70, output
         )
 
-    val output =
-        ByteArrayOutputStream()
-
-
-
-    yuvImage.compressToJpeg(
-        android.graphics.Rect(
-            0,
-            0,
-            image.width,
-            image.height
-        ),
-        90,
-        output
-    )
-
-    return BitmapFactory.decodeByteArray(
-        output.toByteArray(),
-        0,
-        output.size()
-    )
+        output.toByteArray()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
 }

@@ -3,6 +3,7 @@ package com.example.maquina_recicladora
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -40,6 +41,31 @@ object ApiClient {
             } catch (e: Exception) {
                 e.printStackTrace()
                 false
+            }
+        }
+    }
+
+    suspend fun detectarEnVisor(jpegBytes: ByteArray): Boolean? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val requestBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("image", "frame.jpg",
+                        jpegBytes.toRequestBody("image/jpeg".toMediaType()))
+                    .build()
+                val request = Request.Builder()
+                    .url("${EcoCycleConfig.VISOR_URL}/detect")
+                    .post(requestBody)
+                    .build()
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) null
+                else {
+                    val json = JSONObject(response.body!!.string())
+                    json.optBoolean("botella", false)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
             }
         }
     }
