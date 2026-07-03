@@ -1019,11 +1019,7 @@ fun ValidacionBotellaScreen(
         mutableStateOf<ByteArray?>(null)
     }
 
-    var lastFrameSize by remember {
-        mutableIntStateOf(0)
-    }
-
-    var stableFrameCount by remember {
+    var lastJpegSize by remember {
         mutableIntStateOf(0)
     }
 
@@ -1041,21 +1037,11 @@ fun ValidacionBotellaScreen(
             if (validando) continue
 
             val currentSize = jpeg.size
-            if (lastFrameSize > 0) {
-                val changeRatio = kotlin.math.abs(currentSize - lastFrameSize).toFloat() / lastFrameSize.toFloat()
-                if (changeRatio > 0.15f) {
-                    stableFrameCount = 0
-                    lastFrameSize = currentSize
-                    continue
-                }
-            }
-            lastFrameSize = currentSize
-            stableFrameCount++
+            val cambio = lastJpegSize == 0 ||
+                kotlin.math.abs(currentSize - lastJpegSize).toFloat() / lastJpegSize.toFloat() > 0.08f
+            lastJpegSize = currentSize
 
-            if (stableFrameCount < 3) {
-                statusText = "Analizando..."
-                continue
-            }
+            if (!cambio) continue
 
             statusText = "Enviando a Visor..."
             val detected = ApiClient.detectarEnVisor(jpeg)
@@ -1093,7 +1079,7 @@ fun ValidacionBotellaScreen(
                     }
                     mensaje = "Coloca la siguiente"
                     validando = false
-                    stableFrameCount = 0
+                    lastJpegSize = 0
                 }
                 false -> {
                     esBotella = false
