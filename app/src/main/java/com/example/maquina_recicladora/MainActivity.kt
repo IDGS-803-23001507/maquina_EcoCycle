@@ -1024,7 +1024,7 @@ fun ValidacionBotellaScreen(
     LaunchedEffect(Unit) {
         statusText = "Iniciando detección..."
         while (true) {
-            delay(2000)
+            delay(500)
             val jpeg = latestJpeg
             if (jpeg == null) {
                 statusText = "Esperando frames de cámara..."
@@ -1032,7 +1032,7 @@ fun ValidacionBotellaScreen(
             }
             if (validando) continue
 
-            statusText = "Enviando a Visor/YOLO..."
+            statusText = "Analizando..."
             val detected = ApiClient.detectarEnVisor(jpeg)
             when (detected) {
                 null -> statusText = "Error de conexión con Visor"
