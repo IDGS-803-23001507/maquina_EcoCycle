@@ -1,6 +1,8 @@
 package com.example.maquina_recicladora
 
 import android.graphics.ImageFormat
+import android.graphics.Rect
+import android.graphics.YuvImage
 import androidx.annotation.OptIn
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -18,6 +20,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
 @Composable
@@ -96,30 +99,51 @@ private fun imageProxyToJpeg(imageProxy: ImageProxy): ByteArray? {
     return try {
         val image = imageProxy.image ?: return null
         val planes = image.planes
-        val yBuffer = planes[0].buffer
-        val uBuffer = planes[1].buffer
-        val vBuffer = planes[2].buffer
+        val w = image.width
+        val h = image.height
+        val nv21 = ByteArray(w * h * 3 / 2)
 
-        val ySize = yBuffer.remaining()
-        val chromaSize = uBuffer.remaining()
-        val nv21 = ByteArray(image.width * image.height * 3 / 2)
+        val yPlane = planes[0]
+        val yBuf = yPlane.buffer
+        val yStride = yPlane.rowStride
+        val yPix = yPlane.pixelStride
 
-        yBuffer.get(nv21, 0, ySize)
-
-        val uArray = ByteArray(chromaSize)
-        val vArray = ByteArray(chromaSize)
-        uBuffer.get(uArray)
-        vBuffer.get(vArray)
-
-        var offset = ySize
-        for (i in 0 until chromaSize) {
-            nv21[offset++] = vArray[i]
-            nv21[offset++] = uArray[i]
+        var dstOff = 0
+        for (row in 0 until h) {
+            yBuf.position(row * yStride)
+            if (yPix == 1 && yStride == w) {
+                yBuf.get(nv21, dstOff, w)
+                dstOff += w
+            } else {
+                for (col in 0 until w) {
+                    nv21[dstOff++] = yBuf.get(yBuf.position() + col * yPix)
+                }
+            }
         }
 
-        val yuvImage = android.graphics.YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+        val uPlane = planes[1]
+        val vPlane = planes[2]
+        val uBuf = uPlane.buffer
+        val vBuf = vPlane.buffer
+        val uStride = uPlane.rowStride
+        val vStride = vPlane.rowStride
+        val uPix = uPlane.pixelStride
+        val vPix = vPlane.pixelStride
+
+        val cw = w / 2
+        val ch = h / 2
+        for (row in 0 until ch) {
+            val uRowBase = row * uStride
+            val vRowBase = row * vStride
+            for (col in 0 until cw) {
+                nv21[dstOff++] = vBuf.get(vRowBase + col * vPix)
+                nv21[dstOff++] = uBuf.get(uRowBase + col * uPix)
+            }
+        }
+
+        val yuvImage = YuvImage(nv21, ImageFormat.NV21, w, h, null)
         val output = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(android.graphics.Rect(0, 0, image.width, image.height), 95, output)
+        yuvImage.compressToJpeg(Rect(0, 0, w, h), 95, output)
         output.toByteArray()
     } catch (e: Exception) {
         e.printStackTrace()

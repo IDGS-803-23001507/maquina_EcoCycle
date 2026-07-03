@@ -1019,8 +1019,8 @@ fun ValidacionBotellaScreen(
         mutableStateOf<ByteArray?>(null)
     }
 
-    var lastJpegSize by remember {
-        mutableIntStateOf(0)
+    var lastDetectMs by remember {
+        mutableLongStateOf(0L)
     }
 
     val scope = rememberCoroutineScope()
@@ -1028,25 +1028,26 @@ fun ValidacionBotellaScreen(
     LaunchedEffect(Unit) {
         statusText = "Coloca una botella frente a la cámara"
         while (true) {
-            delay(500)
+            delay(300)
             val jpeg = latestJpeg
             if (jpeg == null) {
-                statusText = "Esperando cámara..."
+                mensaje = "Esperando cámara..."
                 continue
             }
             if (validando) continue
 
-            val currentSize = jpeg.size
-            val cambio = lastJpegSize == 0 ||
-                kotlin.math.abs(currentSize - lastJpegSize).toFloat() / lastJpegSize.toFloat() > 0.08f
-            lastJpegSize = currentSize
-
-            if (!cambio) continue
+            val now = System.currentTimeMillis()
+            if (now - lastDetectMs < 1500) continue
+            lastDetectMs = now
 
             statusText = "Enviando a Visor..."
             val detected = ApiClient.detectarEnVisor(jpeg)
             when (detected) {
-                null -> statusText = "Error de conexión"
+                null -> {
+                    esBotella = false
+                    mensaje = "Error de conexión (Visor)"
+                    statusText = "Reintentando..."
+                }
                 true -> {
                     esBotella = true
                     validando = true
@@ -1079,11 +1080,12 @@ fun ValidacionBotellaScreen(
                     }
                     mensaje = "Coloca la siguiente"
                     validando = false
-                    lastJpegSize = 0
+                    lastDetectMs = 0
                 }
                 false -> {
                     esBotella = false
-                    statusText = "No se detectó botella"
+                    mensaje = "No se detectó botella"
+                    statusText = "Intenta de nuevo"
                 }
             }
         }
