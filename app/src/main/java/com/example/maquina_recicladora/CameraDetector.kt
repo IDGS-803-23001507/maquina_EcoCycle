@@ -95,16 +95,28 @@ fun CameraDetector(
 private fun imageProxyToJpeg(imageProxy: ImageProxy): ByteArray? {
     return try {
         val image = imageProxy.image ?: return null
-        val yBuffer = image.planes[0].buffer
-        val uBuffer = image.planes[1].buffer
-        val vBuffer = image.planes[2].buffer
+        val planes = image.planes
+        val yBuffer = planes[0].buffer
+        val uBuffer = planes[1].buffer
+        val vBuffer = planes[2].buffer
+
         val ySize = yBuffer.remaining()
-        val uSize = uBuffer.remaining()
-        val vSize = vBuffer.remaining()
-        val nv21 = ByteArray(ySize + uSize + vSize)
+        val chromaSize = uBuffer.remaining()
+        val nv21 = ByteArray(image.width * image.height * 3 / 2)
+
         yBuffer.get(nv21, 0, ySize)
-        vBuffer.get(nv21, ySize, vSize)
-        uBuffer.get(nv21, ySize + vSize, uSize)
+
+        val uArray = ByteArray(chromaSize)
+        val vArray = ByteArray(chromaSize)
+        uBuffer.get(uArray)
+        vBuffer.get(vArray)
+
+        var offset = ySize
+        for (i in 0 until chromaSize) {
+            nv21[offset++] = vArray[i]
+            nv21[offset++] = uArray[i]
+        }
+
         val yuvImage = android.graphics.YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
         val output = ByteArrayOutputStream()
         yuvImage.compressToJpeg(android.graphics.Rect(0, 0, image.width, image.height), 95, output)
