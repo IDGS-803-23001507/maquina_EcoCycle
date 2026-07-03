@@ -125,7 +125,7 @@ private fun imageProxyToJpeg(imageProxy: ImageProxy): ByteArray? {
         val output = ByteArrayOutputStream()
         yuvImage.compressToJpeg(
             android.graphics.Rect(0, 0, image.width, image.height),
-            70, output
+            95, output
         )
 
         output.toByteArray()
