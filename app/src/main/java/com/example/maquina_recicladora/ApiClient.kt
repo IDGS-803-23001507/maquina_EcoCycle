@@ -70,30 +70,6 @@ object ApiClient {
         }
     }
 
-    suspend fun esperarConfirmacionEsp32(sessionId: String, timeoutMs: Long = 30000): Boolean? {
-        return withContext(Dispatchers.IO) {
-            val deadline = System.currentTimeMillis() + timeoutMs
-            while (System.currentTimeMillis() < deadline) {
-                try {
-                    val request = Request.Builder()
-                        .url("${EcoCycleConfig.VISOR_URL}/session-status/$sessionId")
-                        .get()
-                        .build()
-                    val response = client.newCall(request).execute()
-                    if (response.isSuccessful) {
-                        val json = JSONObject(response.body!!.string())
-                        if (json.has("validacion2")) {
-                            val v2 = json.getJSONObject("validacion2")
-                            return@withContext v2.optBoolean("esBotella", false)
-                        }
-                    }
-                } catch (_: Exception) { }
-                Thread.sleep(1000)
-            }
-            null
-        }
-    }
-
     suspend fun limpiarSesionMaquina(machineId: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {
