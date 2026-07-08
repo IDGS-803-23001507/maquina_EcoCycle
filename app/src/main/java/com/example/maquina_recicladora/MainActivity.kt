@@ -1096,7 +1096,7 @@ fun ValidacionBotellaScreen(
 
             Card(
                 modifier = Modifier
-                    .width(520.dp)
+                    .fillMaxWidth(0.85f)
                     .padding(top = 45.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
@@ -1111,42 +1111,42 @@ fun ValidacionBotellaScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(
-                            top = 30.dp,
-                            bottom = 30.dp,
-                            start = 20.dp,
-                            end = 20.dp
+                            top = 35.dp,
+                            bottom = 35.dp,
+                            start = 28.dp,
+                            end = 28.dp
                         ),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
 
                     Text(
                         text = "Valida tus botellas",
-                        fontSize = 22.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF17322E)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
                         text = mensaje,
-                        fontSize = 16.sp,
+                        fontSize = 18.sp,
                         color = if (validando) Color(0xFF44C225) else Color.Gray
                     )
 
                     Text(
                         text = statusText,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         color = Color(0xFF888888),
                         maxLines = 1
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Box(
                         modifier = Modifier
-                            .width(300.dp)
-                            .height(320.dp)
+                            .width(350.dp)
+                            .height(360.dp)
                     ) {
                         CameraDetector(
                             onNewFrame = { bytes -> latestJpeg = bytes },
@@ -1155,16 +1155,16 @@ fun ValidacionBotellaScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
                         text = "Botellas: $botellas",
-                        fontSize = 28.sp,
+                        fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF17322E)
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
@@ -1182,16 +1182,16 @@ fun ValidacionBotellaScreen(
                             }
                         },
                         modifier = Modifier
-                            .width(220.dp)
-                            .height(55.dp),
-                        shape = RoundedCornerShape(10.dp),
+                            .width(240.dp)
+                            .height(60.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF44C225)
                         )
                     ) {
                         Text(
                             text = "FINALIZAR",
-                            fontSize = 18.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
