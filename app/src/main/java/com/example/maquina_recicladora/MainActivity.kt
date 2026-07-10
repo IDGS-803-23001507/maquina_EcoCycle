@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -52,6 +54,14 @@ import com.google.firebase.database.DatabaseError
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,23 +107,16 @@ fun AppMaquina() {
 
             "validacion" -> ValidacionBotellaScreen(
                 sessionId = sessionId,
+                usuarioId = usuarioId,
                 machineId = EcoCycleConfig.MACHINE_ID,
                 onFinalizar = { count ->
                     botellasContadas = count
-                    pantalla = "conteo"
+                    pantalla = "resumen"
                 }
             )
 
-            "conteo" -> ConteoScreen(
+            "resumen" -> ResumenFinalScreen(
                 botellas = botellasContadas,
-                usuarioId = usuarioId,
-                maquinaId = EcoCycleConfig.MACHINE_ID,
-                onFinalizar = {
-                    pantalla = "despedida"
-                }
-            )
-
-            "despedida" -> DespedidaScreen(
                 puntos = botellasContadas * 20,
                 onReiniciar = {
                     pantalla = "bienvenida"
@@ -294,9 +297,20 @@ fun BienvenidaScreen(
             alpha = 0.28f
         )
 
-        Box(
-            contentAlignment = Alignment.TopCenter
-        ) {
+    var startAnimation by remember { mutableStateOf(false) }
+    val scaleAnim by animateFloatAsState(
+        targetValue = if (startAnimation) 1f else 0.8f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "scale_anim"
+    )
+    LaunchedEffect(Unit) {
+        startAnimation = true
+    }
+
+    Box(
+        modifier = Modifier.scale(scaleAnim),
+        contentAlignment = Alignment.TopCenter
+    ) {
 
             Card(
                 modifier = Modifier
@@ -475,6 +489,17 @@ fun generarQR(texto: String): Bitmap {
 @Composable
 fun InicioScreen(onIniciar: () -> Unit) {
 
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scalePulse by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_scale"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -551,7 +576,8 @@ fun InicioScreen(onIniciar: () -> Unit) {
                         onClick = onIniciar,
                         modifier = Modifier
                             .width(220.dp)
-                            .height(55.dp),
+                            .height(55.dp)
+                            .scale(scalePulse),
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF11B311)
@@ -596,16 +622,28 @@ fun InicioScreen(onIniciar: () -> Unit) {
 }
 
 @Composable
-fun ConteoScreen(
+fun ResumenFinalScreen(
     botellas: Int,
-    usuarioId: String,
-    maquinaId: String,
-    onFinalizar: () -> Unit
+    puntos: Int,
+    onReiniciar: () -> Unit
 ) {
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(5000)
+        onReiniciar()
+    }
 
-    val puntos = botellas * 20
-    var guardando by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+    var startAnimation by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val scaleAnim by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (startAnimation) 1f else 0.8f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy, 
+            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+        ),
+        label = "scale_anim"
+    )
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        startAnimation = true
+    }
 
     Box(
         modifier = Modifier
@@ -621,7 +659,6 @@ fun ConteoScreen(
             ),
         contentAlignment = Alignment.Center
     ) {
-
         Image(
             painter = painterResource(R.drawable.hojas),
             contentDescription = null,
@@ -631,9 +668,9 @@ fun ConteoScreen(
         )
 
         Box(
+            modifier = Modifier.scale(scaleAnim),
             contentAlignment = Alignment.TopCenter
         ) {
-
             Card(
                 modifier = Modifier
                     .width(520.dp)
@@ -643,7 +680,6 @@ fun ConteoScreen(
                     containerColor = Color.White
                 )
             ) {
-
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -655,306 +691,62 @@ fun ConteoScreen(
                         ),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-
                     Text(
-                        text = "Botellas introducidas",
-                        fontSize = 24.sp,
+                        text = "¡Sesión Completada!",
+                        fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF17322E)
                     )
 
-                    Spacer(modifier = Modifier.height(35.dp))
+                    Spacer(modifier = Modifier.height(30.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-
-                            Image(
-                                painter = painterResource(R.drawable.botella),
-                                contentDescription = null,
-                                modifier = Modifier.size(90.dp)
-                            )
-                            Image(
-                                painter = painterResource(R.drawable.botella),
-                                contentDescription = null,
-                                modifier = Modifier.size(90.dp).offset(x = (-40).dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(2.dp))
-
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "→",
-                                fontSize = 40.sp,
-                                color = Color(0xFF17322E)
+                                text = "Botellas",
+                                color = Color.Gray,
+                                fontSize = 16.sp
                             )
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
                             Text(
                                 text = botellas.toString(),
-                                fontSize = 48.sp,
+                                fontSize = 42.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF17322E)
                             )
                         }
 
                         VerticalDivider(
-                            modifier = Modifier.height(90.dp),
+                            modifier = Modifier.height(70.dp),
                             thickness = 2.dp,
                             color = Color(0xFFE0E0E0)
                         )
 
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-
-                            Icon(
-                                painter = painterResource(R.drawable.estrella),
-                                contentDescription = null,
-                                tint = Color(0xFFFFD700),
-                                modifier = Modifier.size(40.dp)
-                            )
-
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "Puntos",
+                                text = "Puntos Obtenidos",
                                 color = Color.Gray,
                                 fontSize = 16.sp
                             )
-
                             Text(
                                 text = puntos.toString(),
-                                fontSize = 36.sp,
+                                fontSize = 42.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF44C225)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(35.dp))
-
-                    Button(
-                        onClick = {
-                            if (!guardando) {
-                                guardando = true
-                                scope.launch {
-                                    ApiClient.registrarSesion(
-                                        usuarioId = usuarioId,
-                                        maquinaId = maquinaId,
-                                        botellas = botellas
-                                    )
-                                    ApiClient.limpiarSesionMaquina(maquinaId)
-                                    onFinalizar()
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .width(220.dp)
-                            .height(55.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF44C225)
-                        ),
-                        enabled = !guardando
-                    ) {
-                        Text(
-                            text = if (guardando) "GUARDANDO..." else "FINALIZAR",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-
-            Card(
-                modifier = Modifier.size(100.dp),
-                shape = CircleShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF2FAE32)
-                ),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 8.dp
-                )
-            ) {
-
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-
-                    Image(
-                        painter = painterResource(R.drawable.logo_ecocycle),
-                        contentDescription = null,
-                        modifier = Modifier.size(72.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun DespedidaScreen(
-    puntos: Int,
-    onReiniciar: () -> Unit
-) {
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF003B34),
-                        Color(0xFF00594D),
-                        Color(0xFF003B34)
-                    )
-                )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-
-        Image(
-            painter = painterResource(R.drawable.hojas),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            alpha = 0.20f
-        )
-
-        Box(
-            contentAlignment = Alignment.TopCenter
-        ) {
-
-            Card(
-                modifier = Modifier
-                    .width(520.dp)
-                    .padding(top = 45.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White
-                )
-            ) {
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            top = 75.dp,
-                            bottom = 35.dp,
-                            start = 30.dp,
-                            end = 30.dp
-                        ),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-
-                    Text(
-                        text = "¡Gracias por Reciclar!",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF17322E)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Tu contribución ayuda al planeta",
-                        fontSize = 15.sp,
-                        color = Color.Gray
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HorizontalDivider(
-                            modifier = Modifier.width(70.dp),
-                            color = Color(0xFF8BC34A)
-                        )
-
-                        Image(
-                            painter = painterResource(R.drawable.hojita),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(50.dp)
-                                .padding(horizontal = 2.dp)
-                        )
-
-                        HorizontalDivider(
-                            modifier = Modifier.width(70.dp),
-                            color = Color(0xFF8BC34A)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFEAF5E8)
-                        )
-                    ) {
-
-                        Box(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-
-                            Image(
-                                painter = painterResource(R.drawable.hoja_sola2),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(100.dp)
-                                    .align(Alignment.CenterStart),
-                                alpha = 0.5f
-                            )
-
-                            Image(
-                                painter = painterResource(R.drawable.hoja_sola),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(100.dp)
-                                    .align(Alignment.CenterEnd),
-                                alpha = 0.5f
-                            )
-
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-
-                                Text(
-                                    text = "PUNTOS TOTALES",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF2E6D32)
-                                )
-
-                                Text(
-                                    text = puntos.toString(),
-                                    fontSize = 38.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF17322E)
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(40.dp))
 
                     Button(
                         onClick = onReiniciar,
                         modifier = Modifier
-                            .width(180.dp)
-                            .height(50.dp),
+                            .width(200.dp)
+                            .height(55.dp),
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF1FAE3A)
@@ -963,24 +755,27 @@ fun DespedidaScreen(
                         Text(
                             text = "CERRAR",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Color.White,
+                            fontSize = 18.sp
                         )
                     }
                 }
             }
 
             Card(
-                modifier = Modifier.size(90.dp)
+                modifier = Modifier.size(90.dp),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-
                     Image(
                         painter = painterResource(R.drawable.logo_ecocycle),
                         contentDescription = null,
-                        modifier = Modifier.size(150.dp)
+                        modifier = Modifier.size(60.dp)
                     )
                 }
             }
@@ -989,11 +784,66 @@ fun DespedidaScreen(
 }
 
 @Composable
+fun AnimacionBotellaGuia() {
+    val infiniteTransition = rememberInfiniteTransition(label = "bottle_tilt")
+    val tiltAngle by infiniteTransition.animateFloat(
+        initialValue = 35f,
+        targetValue = -15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "tilt_angle_3d"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(280.dp)
+            .graphicsLayer {
+                cameraDistance = 8 * density
+                rotationX = tiltAngle
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_botella_animada_base),
+            contentDescription = "Coloca la botella así",
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+@Composable
 fun ValidacionBotellaScreen(
     sessionId: String,
+    usuarioId: String,
     machineId: String,
     onFinalizar: (count: Int) -> Unit
 ) {
+    var guardando by remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    val context = LocalContext.current
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasCameraPermission = isGranted
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     var mensaje by remember {
         mutableStateOf("Coloca una botella frente a la cámara")
@@ -1128,31 +978,82 @@ fun ValidacionBotellaScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text(
-                        text = mensaje,
-                        fontSize = 18.sp,
-                        color = if (validando) Color(0xFF44C225) else Color.Gray
-                    )
+                    val messageColor = when {
+                        validando || esBotella -> Color(0xFF2E6D32)
+                        mensaje.contains("Error") || mensaje.contains("No se") || mensaje.contains("Intenta") -> Color(0xFFD32F2F)
+                        else -> Color(0xFF424242)
+                    }
+                    val messageBg = when {
+                        validando || esBotella -> Color(0xFFEAF5E8)
+                        mensaje.contains("Error") || mensaje.contains("No se") || mensaje.contains("Intenta") -> Color(0xFFFFEBEE)
+                        else -> Color(0xFFF5F5F5)
+                    }
 
-                    Text(
-                        text = statusText,
-                        fontSize = 12.sp,
-                        color = Color(0xFF888888),
-                        maxLines = 1
-                    )
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = messageBg),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = mensaje,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = messageColor
+                            )
+                            if (statusText.isNotEmpty()) {
+                                Text(
+                                    text = statusText,
+                                    fontSize = 12.sp,
+                                    color = messageColor.copy(alpha = 0.8f),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .width(350.dp)
-                            .height(360.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CameraDetector(
-                            onNewFrame = { bytes -> latestJpeg = bytes },
-                            borderColor = if (esBotella) Color.Green else Color.Red,
-                            mensaje = mensaje
-                        )
+                        Box(
+                            modifier = Modifier
+                                .width(300.dp)
+                                .height(320.dp)
+                        ) {
+                            if (hasCameraPermission) {
+                                CameraDetector(
+                                    onNewFrame = { bytes -> latestJpeg = bytes },
+                                    borderColor = if (esBotella) Color.Green else Color.Red,
+                                    mensaje = "Alinea la botella aquí"
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.8f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("Se requiere cámara", color = Color.White)
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
+                                            Text("Dar Permiso")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Botella animada fuera de la cámara
+                        AnimacionBotellaGuia()
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -1168,17 +1069,30 @@ fun ValidacionBotellaScreen(
 
                     Button(
                         onClick = {
-                            scope.launch {
-                                val db = FirebaseFirestore.getInstance()
-                                db.collection("sesiones_reciclaje")
-                                    .document(sessionId)
-                                    .update(
-                                        "estado", "completada",
-                                        "botellas", botellas,
-                                        "puntos", botellas * 20
-                                    )
-                                ApiClient.limpiarSesionMaquina(machineId)
-                                onFinalizar(botellas)
+                            if (!guardando) {
+                                guardando = true
+                                scope.launch {
+                                    val db = FirebaseFirestore.getInstance()
+                                    val docRef = db.collection("sesiones_reciclaje").document(sessionId)
+                                    
+                                    if (botellas == 0) {
+                                        docRef.delete()
+                                    } else {
+                                        docRef.update(
+                                            "estado", "completada",
+                                            "botellas", botellas,
+                                            "puntos", botellas * 20
+                                        )
+                                        ApiClient.registrarSesion(
+                                            usuarioId = usuarioId,
+                                            maquinaId = machineId,
+                                            botellas = botellas
+                                        )
+                                    }
+                                    
+                                    ApiClient.limpiarSesionMaquina(machineId)
+                                    onFinalizar(botellas)
+                                }
                             }
                         },
                         modifier = Modifier
@@ -1187,11 +1101,12 @@ fun ValidacionBotellaScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF44C225)
-                        )
+                        ),
+                        enabled = !guardando
                     ) {
                         Text(
-                            text = "FINALIZAR",
-                            fontSize = 20.sp,
+                            text = if (guardando) "GUARDANDO..." else "FINALIZAR",
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
