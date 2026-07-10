@@ -874,7 +874,6 @@ fun ValidacionBotellaScreen(
     }
 
     val scope = rememberCoroutineScope()
-    val usarEsp32 = false
 
     LaunchedEffect(Unit) {
         statusText = "Coloca una botella frente a la cámara"
@@ -903,39 +902,16 @@ fun ValidacionBotellaScreen(
                     esBotella = true
                     validando = true
                     mensaje = "Botella detectada"
-                    if (usarEsp32) {
-                        statusText = "Abriendo compuerta..."
-                        ApiClient.validarBotella(
-                            sessionId = sessionId,
-                            machineId = machineId,
-                            esBotella = true
-                        )
-                        statusText = "Esperando ESP32..."
-                        val confirmacion = ApiClient.esperarConfirmacionEsp32(sessionId)
-                        when (confirmacion) {
-                            null -> {
-                                statusText = "ESP32 no respondió"
-                                mensaje = "Error"
-                                delay(3000)
-                            }
-                            true -> {
-                                botellas++
-                                statusText = "Botella almacenada!"
-                                mensaje = "Botella #$botellas"
-                                delay(2000)
-                            }
-                            false -> {
-                                statusText = "Botella rechazada"
-                                mensaje = "Intenta de nuevo"
-                                delay(2000)
-                            }
-                        }
-                    } else {
-                        botellas++
-                        statusText = "Botella #$botellas almacenada!"
-                        mensaje = "Botella aceptada"
-                        delay(2000)
-                    }
+                    statusText = "Abriendo compuerta..."
+                    ApiClient.validarBotella(
+                        sessionId = sessionId,
+                        machineId = machineId,
+                        esBotella = true
+                    )
+                    botellas++
+                    statusText = "Botella #$botellas almacenada!"
+                    mensaje = "Botella aceptada"
+                    delay(2000)
                     mensaje = "Coloca la siguiente"
                     validando = false
                     lastDetectMs = 0
