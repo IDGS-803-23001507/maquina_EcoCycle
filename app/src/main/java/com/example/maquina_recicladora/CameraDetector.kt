@@ -8,7 +8,10 @@ import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -37,7 +40,7 @@ fun CameraDetector(
         contentAlignment = Alignment.Center
     ) {
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)),
             factory = { ctx ->
                 val previewView = PreviewView(ctx)
                 val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
@@ -64,7 +67,7 @@ fun CameraDetector(
                         cameraProvider.unbindAll()
                         cameraProvider.bindToLifecycle(
                             lifecycleOwner,
-                            CameraSelector.DEFAULT_BACK_CAMERA,
+                            CameraSelector.DEFAULT_FRONT_CAMERA,
                             analyzer,
                             preview
                         )
@@ -81,7 +84,7 @@ fun CameraDetector(
             modifier = Modifier
                 .width(220.dp)
                 .height(300.dp)
-                .border(width = 4.dp, color = borderColor)
+                .border(width = 4.dp, color = borderColor, shape = RoundedCornerShape(16.dp))
         )
 
         Text(
@@ -90,6 +93,8 @@ fun CameraDetector(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 40.dp)
+                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         )
     }
 }

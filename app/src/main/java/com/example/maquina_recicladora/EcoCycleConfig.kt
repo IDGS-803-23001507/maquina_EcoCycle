@@ -5,7 +5,7 @@ package com.example.maquina_recicladora
 
 object EcoCycleConfig {
     const val MACHINE_ID = "machine_001"
-    const val SERVER_HOST = "104.248.187.43"
+    const val SERVER_HOST = "192.168.1.6"
     const val VISOR_PORT = 3000
     const val NET_API_PORT = 5000
     const val VISOR_URL_HTTPS = "https://ecocyclemx.tech/visor"
