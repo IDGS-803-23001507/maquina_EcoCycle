@@ -13,8 +13,8 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
     private val JSON_MEDIA = "application/json".toMediaType()

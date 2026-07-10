@@ -1,5 +1,7 @@
 package com.example.maquina_recicladora
 
+import android.util.Log
+
 import android.os.Bundle
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
@@ -79,9 +81,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppMaquina() {
 
-    var pantalla by remember { mutableStateOf("bienvenida") }
-    var sessionId by remember { mutableStateOf("") }
-    var usuarioId by remember { mutableStateOf("") }
+    var pantalla by remember { mutableStateOf("inicio") } // SALTAR QR TEMPORALMENTE
+    var sessionId by remember { mutableStateOf("sesion_prueba_123") }
+    var usuarioId by remember { mutableStateOf("usuario_prueba_123") }
     var botellasContadas by remember { mutableIntStateOf(0) }
 
     AnimatedContent(
@@ -119,7 +121,8 @@ fun AppMaquina() {
                 botellas = botellasContadas,
                 puntos = botellasContadas * 20,
                 onReiniciar = {
-                    pantalla = "bienvenida"
+                    botellasContadas = 0
+                    pantalla = "inicio" // SALTAR QR AL REINICIAR TEMPORALMENTE
                 }
             )
         }
@@ -865,63 +868,59 @@ fun ValidacionBotellaScreen(
         mutableStateOf("Esperando cámara...")
     }
 
-    var latestJpeg by remember {
-        mutableStateOf<ByteArray?>(null)
-    }
-
-    var lastDetectMs by remember {
-        mutableLongStateOf(0L)
-    }
+    var isPerfectAlignment by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        statusText = "Coloca una botella frente a la cámara"
-        while (true) {
-            delay(300)
-            val jpeg = latestJpeg
-            if (jpeg == null) {
-                mensaje = "Esperando cámara..."
-                continue
-            }
-            if (validando) continue
+    fun procesarImagen(jpeg: ByteArray) {
+        if (validando) return
+        validando = true
+        mensaje = "Analizando botella..."
+        statusText = "Enviando a inteligencia artificial..."
+        Log.e("ECO_DEBUG", "Iniciando procesarImagen() - Enviando a Visor (${jpeg.size} bytes)")
 
-            val now = System.currentTimeMillis()
-            if (now - lastDetectMs < 1500) continue
-            lastDetectMs = now
-
-            statusText = "Enviando a Visor..."
+        scope.launch {
             val detected = ApiClient.detectarEnVisor(jpeg)
+            Log.e("ECO_DEBUG", "Respuesta Visor (YOLO): detected=$detected")
             when (detected) {
                 null -> {
                     esBotella = false
-                    mensaje = "Error de conexión (Visor)"
-                    statusText = "Reintentando..."
+                    mensaje = "Error de conexión"
+                    statusText = "Revisa tu red o intenta de nuevo"
+                    Log.e("ECO_DEBUG", "No hubo respuesta del servidor (Error)")
                 }
                 true -> {
                     esBotella = true
-                    validando = true
-                    mensaje = "Botella detectada"
+                    mensaje = "¡Botella aceptada!"
                     statusText = "Abriendo compuerta..."
+                    Log.e("ECO_DEBUG", "Botella plástica confirmada. Registrando en API...")
                     ApiClient.validarBotella(
                         sessionId = sessionId,
                         machineId = machineId,
                         esBotella = true
                     )
                     botellas++
-                    statusText = "Botella #$botellas almacenada!"
-                    mensaje = "Botella aceptada"
-                    delay(2000)
-                    mensaje = "Coloca la siguiente"
-                    validando = false
-                    lastDetectMs = 0
+                    statusText = "Botella #$botellas almacenada"
+                    Log.e("ECO_DEBUG", "Botella guardada exitosamente. Total: $botellas")
                 }
                 false -> {
                     esBotella = false
-                    mensaje = "No se detectó botella"
-                    statusText = "Intenta de nuevo"
+                    mensaje = "Botella rechazada"
+                    statusText = "Parece que no es plástico válido"
+                    Log.e("ECO_DEBUG", "El Visor rechazó la botella (No plástico / Vidrio)")
                 }
             }
+            delay(2000)
+            if (esBotella) {
+                mensaje = "Alinea la siguiente botella"
+                statusText = "Buscando..."
+                esBotella = false
+            } else {
+                mensaje = "Alinea una botella válida"
+                statusText = "Buscando..."
+            }
+            isPerfectAlignment = false
+            validando = false
         }
     }
 
@@ -1027,11 +1026,30 @@ fun ValidacionBotellaScreen(
                                 .height(320.dp)
                         ) {
                             if (hasCameraPermission) {
-                                CameraDetector(
-                                    onNewFrame = { bytes -> latestJpeg = bytes },
-                                    borderColor = if (esBotella) Color.Green else Color.Red,
-                                    mensaje = "Alinea la botella aquí"
-                                )
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    CameraDetector(
+                                        onAligned = { bytes -> procesarImagen(bytes) },
+                                        onStatusChange = { stat, isPerf ->
+                                            if (!validando) {
+                                                statusText = stat
+                                                isPerfectAlignment = isPerf
+                                            }
+                                        },
+                                        borderColor = if (isPerfectAlignment && !validando) Color.Green else Color.Red
+                                    )
+                                    if (validando) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                CircularProgressIndicator(color = Color.White)
+                                                Spacer(modifier = Modifier.height(16.dp))
+                                                Text("Validando...", color = Color.White, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
                             } else {
                                 Box(
                                     modifier = Modifier

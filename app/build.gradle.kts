@@ -48,6 +48,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.2")
     implementation("androidx.camera:camera-view:1.4.2")
     implementation(libs.core)
+    implementation("com.google.mlkit:object-detection:17.0.2")
 
     implementation("org.tensorflow:tensorflow-lite:2.17.0")
     implementation("com.google.firebase:firebase-firestore")
