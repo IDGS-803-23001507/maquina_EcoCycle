@@ -19,6 +19,13 @@ object ApiClient {
 
     private val JSON_MEDIA = "application/json".toMediaType()
 
+    // Adjunta la API key de máquina a todas las peticiones (si está configurada)
+    private fun Request.Builder.withApiKey(): Request.Builder = apply {
+        if (EcoCycleConfig.MACHINE_API_KEY.isNotEmpty()) {
+            header("X-Api-Key", EcoCycleConfig.MACHINE_API_KEY)
+        }
+    }
+
     suspend fun validarBotella(
         sessionId: String,
         machineId: String,
@@ -35,6 +42,7 @@ object ApiClient {
                 val request = Request.Builder()
                     .url("${EcoCycleConfig.VISOR_URL}/machine-validate")
                     .post(body)
+                    .withApiKey()
                     .build()
                 val response = client.newCall(request).execute()
                 response.isSuccessful
@@ -56,6 +64,7 @@ object ApiClient {
                 val request = Request.Builder()
                     .url("${EcoCycleConfig.VISOR_URL}/detect")
                     .post(requestBody)
+                    .withApiKey()
                     .build()
                 val response = client.newCall(request).execute()
                 if (!response.isSuccessful) null
@@ -76,6 +85,7 @@ object ApiClient {
                 val request = Request.Builder()
                     .url("${EcoCycleConfig.VISOR_URL}/machine-cleanup/$machineId")
                     .post("{}".toRequestBody(JSON_MEDIA))
+                    .withApiKey()
                     .build()
                 client.newCall(request).execute().isSuccessful
             } catch (e: Exception) {
@@ -101,6 +111,7 @@ object ApiClient {
                 val request = Request.Builder()
                     .url("${EcoCycleConfig.NET_API_URL}/sesionreciclaje")
                     .post(body)
+                    .withApiKey()
                     .build()
                 val response = client.newCall(request).execute()
                 response.isSuccessful
